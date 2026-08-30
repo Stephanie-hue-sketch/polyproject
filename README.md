@@ -1,79 +1,54 @@
-# Betika Predict — Smart Contracts (Testnet Demo)
+# Betika Predict
 
-Real, on-chain prediction market contracts, meant for **Polygon Amoy
-testnet only** — everything here uses free test tokens with no real
-value. Do not deploy this to Polygon mainnet without a professional
-security audit and legal review; it has not been audited.
+A prediction-market trading UI built with React 18 + TypeScript, Tailwind CSS,
+shadcn/ui-style primitives, and wagmi + viem + RainbowKit for wallet
+connectivity on Polygon (USDC settlement).
 
-## What's actually "real" here
-- Real Solidity contracts, compiled and deployed on-chain
-- Real wallet transactions (MetaMask signs and pays gas, just testnet gas)
-- Real on-chain escrow: USDC you deposit is genuinely locked in the
-  contract until the market resolves
-- Real payouts: winners call `claim()` and the contract transfers real
-  (test) USDC to their wallet
+## Design tokens
+- Primary `#0055FF` · Secondary (teal) `#00D4AA`
+- Dark background `#0A0A1A`, light mode `#FFFFFF`
+- Font: Inter · Radius: 8px
+- Layout: two-panel — market list (40%, left) / trading interface (60%, right)
 
-## What's simplified vs. real Polymarket
-| Real Polymarket | This demo |
-|---|---|
-| Central limit order book (CLOB), buy/sell at any price | Pari-mutuel pool — price is just yesPool / (yesPool + noPool) |
-| UMA decentralized oracle resolves markets | A single admin address (the factory owner) resolves manually |
-| Real USDC on Polygon mainnet | MockUSDC — a free, unlimited test token |
-| Audited, billions in volume | Unaudited, built for learning |
-
-## Contracts
-- `MockUSDC.sol` — free test token with a public `faucet()` anyone can call
-- `PredictionMarket.sol` — one binary YES/NO market: `buyYes`, `buyNo`,
-  `resolve` (admin only), `claim`
-- `MarketFactory.sol` — deploys new `PredictionMarket`s and keeps a
-  registry (`getAllMarkets()`) the frontend can read
-
-## Setup
+## Getting started
 ```bash
 npm install
-cp .env.example .env
-# paste a TESTNET-ONLY wallet's private key into .env — see below
+cp .env.example .env        # add a WalletConnect Cloud project id
+npm run dev
 ```
 
-### Get a testnet-only wallet
-1. Open MetaMask, click your account icon → **Add account** → create a
-   brand new one you'll only ever use for testing. Never reuse a wallet
-   that holds real funds.
-2. Account details → **Show private key** → paste it into `.env` as
-   `PRIVATE_KEY`.
-3. Add the Polygon Amoy network to MetaMask if it's not already there
-   (chain ID `80002`, RPC `https://rpc-amoy.polygon.technology`).
-4. Get free test MATIC (for gas) from
-   [faucet.polygon.technology](https://faucet.polygon.technology) — select
-   "Amoy" and paste your new wallet's address.
-
-## Compile & test
-```bash
-npm run compile
-npm test
+## Structure
+```
+src/
+  components/
+    layout/         Navbar, WalletConnectButton (RainbowKit)
+    markets/         MarketList, MarketCard
+    trading/         TradingPanel (buy YES/NO, quantity slider, payout)
+    portfolio/       PortfolioView, PnLChart (recharts)
+    market-creation/ CreateMarketForm (question, category, end date, image)
+    ui/              button, card, input, slider, tabs (shadcn-style)
+  hooks/
+    useMarketPrices  simulated live price feed (2.5s random walk)
+    usePortfolio     derives portfolio value / P&L from positions
+  lib/
+    mockData.ts      seed markets & positions (swap for your indexer/API)
+  wagmi.config.ts    Polygon chain + USDC address, RainbowKit config
 ```
 
-## Deploy to Amoy
-```bash
-npm run deploy:amoy
-```
-This deploys `MockUSDC` and `MarketFactory`, mints you 1,000 test USDC,
-and creates one starter market. Copy the two printed addresses
-(`VITE_USDC_ADDRESS` and `VITE_FACTORY_ADDRESS`) — the frontend needs them.
+## Wiring up real data
+Everything trades against `src/lib/mockData.ts` and the simulated feed in
+`useMarketPrices`. To go live:
+1. Replace `useMarketPrices` with a websocket/subscription hook against your
+   CLOB or indexer.
+2. Replace the mock `handleSubmit` in `TradingPanel` and `CreateMarketForm`
+   with real contract calls (`useWriteContract` from wagmi) against your
+   market + factory contracts.
+3. Add a real WalletConnect Cloud `projectId` in `.env`.
+4. Resolve markets via your oracle (e.g. UMA's Optimistic Oracle) and flip
+   `Market.resolved` / `Market.outcome` once settled.
 
-## Get more test USDC later
-```bash
-npm run faucet:amoy
-```
-
-## Wiring this into the frontend
-This is a separate project from `betika-prediction-market` (the React
-app). To connect them:
-1. Add `VITE_USDC_ADDRESS` and `VITE_FACTORY_ADDRESS` to the frontend's
-   `.env`.
-2. Copy the ABI JSON files from `artifacts/contracts/*.sol/*.json`
-   (after `npm run compile`) into the frontend, e.g. `src/contracts/`.
-3. Replace `useMarketPrices`/mock buy logic with `useReadContract` /
-   `useWriteContract` from wagmi, calling `buyYes`/`buyNo`/`claim` on
-   the deployed `PredictionMarket` addresses returned by
-   `factory.getAllMarkets()`.
+This scaffold ships with **no smart contracts** — trading and market
+creation are wired to local state/mocks so the UI is fully demoable without
+a wallet balance or deployed contracts. Contract integration is intentionally
+left as the next step for your engineering team to point at audited,
+reviewed contracts.
